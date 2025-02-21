@@ -1,14 +1,17 @@
 import mlflow
-from sklearn.linear_model import LinearRegression
-from sklearn.from sklearn.feature_extraction import DictVectorizer
+import pickle
 import pandas as pd
+
+
+mlflow.set_tracking_uri(uri="http://mlflow:5000")
+mlflow.set_experiment("lr_model_mage")
 
 if 'data_exporter' not in globals():
     from mage_ai.data_preparation.decorators import data_exporter
 
 
 @data_exporter
-def export_data(df, *args, **kwargs):
+def export_data(data, *args, **kwargs):
     """
     Exports data to some source.
 
@@ -23,28 +26,15 @@ def export_data(df, *args, **kwargs):
     # Specify your data exporting logic here
     print("Starting...")
 
-    mlflow.set_tracking_uri(uri="http://mlflow:5000")
-    mlflow.experiment_name("lr_model_mage")
+    dv, lr = data
+
     with mlflow.start_run():
-        categorical = ['PULocationID', 'DOLocationID']
-        df[categorical] = df[categorical].astype(str)
-        train_dicts = df[categorical].to_dict(orient='records')
-        print("Computing vectorization...")
-        dv = DictVectorizer()
-        X_train = dv.fit_transform(train_dicts)
-        print("Vectorization computed")
-        target = 'duration'
-        y_train = df[target].values
-        print("Computing model...")
-        lr = LinearRegression()
-        lr.fit(X_train, y_train)
 
-        mlflow.sklearn.log_model(sk_model=lr,
-                            "linear_regression_model",
-                            input_example=X_train)
-        mlflow.log_artifact(dv, "dict_vectorizer")
+        with open("dict_vectorizer.bin", "wb") as f_out:
+            pickle.dump(dv, f_out)
 
-        y_pred = lr.predict(X_train)
+        mlflow.log_artifact("dict_vectorizer.bin")
+        mlflow.sklearn.log_model(lr, 'model')
 
     print("Model intercept is: ", lr.intercept_)
     return lr, dv
